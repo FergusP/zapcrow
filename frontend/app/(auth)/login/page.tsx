@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Shield, Zap, CheckCircle } from 'lucide-react';
 import { useAccount, useDisconnect, useConnect } from 'wagmi';
 import { ConnectButton } from '@xellar/kit';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isConnected, address } = useAccount();
@@ -190,5 +190,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center'>
+        <div className='text-gray-500'>Loading...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

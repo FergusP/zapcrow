@@ -25,14 +25,14 @@ export class EscrowService {
     this.publicClient = createPublicClient({
       chain: liskSepolia,
       transport: http()
-    });
+    }) as PublicClient;
   }
 
   async connect() {
-    if (typeof window !== 'undefined' && window.ethereum) {
+    if (typeof window !== 'undefined' && (window as any).ethereum) {
       this.walletClient = createWalletClient({
         chain: liskSepolia,
-        transport: custom(window.ethereum)
+        transport: custom((window as any).ethereum)
       });
 
       const [address] = await this.walletClient.requestAddresses();

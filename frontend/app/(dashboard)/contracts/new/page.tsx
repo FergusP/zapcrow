@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,15 +16,21 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits } from "viem";
+import { LiskEscrowSimpleAbi } from "@/lib/contracts/LiskEscrowSimpleAbi";
+import { ESCROW_CONTRACT, IDRX_CONTRACT, SELLER_ADDRESS } from "@/lib/contracts/constants";
 
 export default function CreateContractPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const { address: account } = useAccount();
   
-  // Only mock seller address since we don't have email-to-wallet mapping yet
-  const SELLER_ADDRESS = '0x8A113B3f499E30902781f201e27Fdfd22b3aF7C4';
+  // Contract write hooks
+  const { writeContract: createEscrow, data: createHash } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash: createHash,
+  });
   
   const [formData, setFormData] = useState({
     sellerEmail: "",
@@ -55,31 +61,53 @@ export default function CreateContractPage() {
       return;
     }
 
-    setIsLoading(true);
-
     try {
+      const deliveryDeadline = Math.floor(Date.now() / 1000) + parseInt(formData.deliveryDays) * 24 * 60 * 60;
+      const amountInWei = parseUnits(formData.amount, 2); // IDRX has 2 decimals
+
       console.log('Creating escrow contract:', {
         sellerEmail: formData.sellerEmail,
         sellerAddress: SELLER_ADDRESS,
         buyerAddress: account,
-        amount: formData.amount,
-        deliveryDays: formData.deliveryDays
+        amount: amountInWei.toString(),
+        deliveryDeadline: deliveryDeadline
       });
 
-      // Simulate contract creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the smart contract
+      await createEscrow({
+        address: ESCROW_CONTRACT,
+        abi: LiskEscrowSimpleAbi,
+        functionName: "createEscrow",
+        args: [
+          SELLER_ADDRESS,
+          amountInWei,
+          IDRX_CONTRACT,
+          BigInt(deliveryDeadline)
+        ],
+      });
       
-      toast.success('Contract created successfully!');
-      
-      // Navigate to contracts page
-      router.push("/contracts");
+      toast.success('Transaction submitted! Waiting for confirmation...');
     } catch (error) {
       console.error('Error creating contract:', error);
       toast.error('Failed to create contract');
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Watch for transaction confirmation
+  React.useEffect(() => {
+    if (isConfirmed && createHash) {
+      toast.success('Contract created successfully!');
+      
+      // Store PO document in localStorage or handle upload
+      if (formData.poDocument) {
+        // In a real app, you'd upload this to Supabase/IPFS
+        console.log('PO Document to upload:', formData.poDocument);
+      }
+      
+      // Navigate to contracts page
+      router.push("/contracts");
+    }
+  }, [isConfirmed, createHash, router, formData.poDocument]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -228,9 +256,14 @@ export default function CreateContractPage() {
             <Button 
               type="submit" 
               className="w-full h-12 text-base"
-              disabled={isLoading}
+              disabled={isLoading || isConfirming}
             >
-              {isLoading ? (
+              {isConfirming ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Confirming Transaction...
+                </>
+              ) : isLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                   Creating Contract...

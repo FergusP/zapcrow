@@ -23,6 +23,8 @@ export interface Contract {
   disputedAt?: string;
   deadline: string;
   description: string;
+  paymentTerms?: string;
+  updatedAt?: string;
   purchaseOrderUrl?: string;
   escrowId?: string;
   transactionHash?: string;

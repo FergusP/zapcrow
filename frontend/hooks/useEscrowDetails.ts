@@ -7,12 +7,12 @@ export function useEscrowDetails() {
     return await ponderService.getEscrowDetails(escrowId);
   };
 
-  const getPendingDocuments = async () => {
-    return await ponderService.getPendingDocuments();
+  const getSellerPendingDocuments = async (sellerAddress: string) => {
+    return await ponderService.getSellerPendingDocuments(sellerAddress);
   };
 
   return {
     getEscrowDetails,
-    getPendingDocuments,
+    getSellerPendingDocuments,
   };
 }

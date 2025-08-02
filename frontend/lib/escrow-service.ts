@@ -54,7 +54,7 @@ export class EscrowService {
     this.publicClient = createPublicClient({
       chain: liskSepolia,
       transport: http()
-    });
+    }) as PublicClient;
   }
 
   setWalletClient(walletClient: WalletClient) {

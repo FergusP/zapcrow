@@ -1,41 +1,43 @@
-"use client";
+'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
   ResponsiveContainer,
-  Cell
-} from "recharts";
-import { 
-  getCurrentUser, 
-  getContractsByUser, 
+  Cell,
+} from 'recharts';
+import {
+  getCurrentUser,
+  getContractsByUser,
   getTransactionsByUser,
   mockEarningsData,
-  mockUsers
-} from "@/lib/mock-data";
-import { formatDistanceToNow } from "date-fns";
-import { formatIDR } from "@/lib/currency";
+  mockUsers,
+} from '@/lib/mock-data';
+import { formatDistanceToNow } from 'date-fns';
+import { formatIDR } from '@/lib/currency';
 
 export default function DashboardPage() {
   const currentUser = getCurrentUser();
   const userContracts = getContractsByUser(currentUser.id);
   const userTransactions = getTransactionsByUser(currentUser.id);
-  
-  // Active contracts (not completed)
-  const activeContracts = userContracts.filter(c => c.status !== 'completed');
-  
+
+  // Active contracts (not settled or cancelled)
+  const activeContracts = userContracts.filter(
+    (c) => !['settled', 'cancelled'].includes(c.status)
+  );
+
   // Recent transactions
   const recentTransactions = userTransactions.slice(0, 4);
 
   // Stats
   const totalEarnings = userTransactions
-    .filter(t => t.type === 'received')
+    .filter((t) => t.type === 'received')
     .reduce((sum, t) => sum + t.amount, 0);
 
   return (
@@ -46,7 +48,7 @@ export default function DashboardPage() {
           Good afternoon, {currentUser.name.split(' ')[0]}!
         </h1>
         <p className="text-gray-600 flex items-center gap-1">
-          Welcome back! 
+          Welcome back!
           <span className="text-lg">👋</span>
         </p>
       </div>
@@ -61,37 +63,64 @@ export default function DashboardPage() {
               <CardTitle className="text-lg font-semibold">
                 Your Active Contracts • {activeContracts.length}
               </CardTitle>
-              <Button variant="ghost" size="sm">•••</Button>
+              <Button variant="ghost" size="sm">
+                •••
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               {activeContracts.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No active contracts</p>
+                <p className="text-gray-500 text-center py-8">
+                  No active contracts
+                </p>
               ) : (
                 activeContracts.map((contract) => (
-                  <div key={contract.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div
+                    key={contract.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div className="flex items-center gap-4">
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={contract.seller.avatar} />
                         <AvatarFallback>
-                          {contract.seller.company.substring(0, 2).toUpperCase()}
+                          {contract.seller.company
+                            .substring(0, 2)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="font-semibold">{contract.seller.company}</h3>
-                        <p className="text-sm text-gray-600">{contract.seller.country}</p>
-                        <p className="text-xs text-gray-500">Contract Period</p>
-                        <p className="text-xs font-medium">{contract.period}</p>
+                        <h3 className="font-semibold">
+                          {contract.seller.company}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {contract.seller.country}
+                        </p>
+                        <p className="text-xs text-gray-500">Deadline</p>
+                        <p className="text-xs font-medium">
+                          {new Date(contract.deadline).toLocaleDateString()}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-bold text-blue-600">
                         {formatIDR(contract.amount)}
                       </div>
-                      <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                        {contract.status === 'active' ? 'Fixed Rate' : contract.status}
+                      <Badge
+                        variant={
+                          ['created', 'funded', 'documents_pending'].includes(
+                            contract.status
+                          )
+                            ? 'default'
+                            : 'secondary'
+                        }
+                      >
+                        {contract.status.replace('_', ' ')}
                       </Badge>
-                      <p className="text-xs text-gray-500 mt-1">Name of client</p>
-                      <p className="text-xs font-medium">{contract.buyer.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Name of client
+                      </p>
+                      <p className="text-xs font-medium">
+                        {contract.buyer.name}
+                      </p>
                     </div>
                   </div>
                 ))
@@ -102,33 +131,50 @@ export default function DashboardPage() {
           {/* Transaction History */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Transaction History</CardTitle>
-              <Button variant="ghost" size="sm">•••</Button>
+              <CardTitle className="text-lg font-semibold">
+                Transaction History
+              </CardTitle>
+              <Button variant="ghost" size="sm">
+                •••
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               {recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between">
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
                       {transaction.type === 'received' ? '↓' : '↑'}
                     </div>
                     <div>
                       <p className="font-medium">
-                        {transaction.type === 'received' ? 'From' : 'To'} {transaction.from || transaction.to}
+                        {transaction.type === 'received' ? 'From' : 'To'}{' '}
+                        {transaction.from || transaction.to}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {formatDistanceToNow(new Date(transaction.date), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(transaction.date), {
+                          addSuffix: true,
+                        })}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`font-semibold ${
-                      transaction.type === 'received' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transaction.type === 'received' ? '+' : '-'}{formatIDR(transaction.amount)}
+                    <p
+                      className={`font-semibold ${
+                        transaction.type === 'received'
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
+                      {transaction.type === 'received' ? '+' : '-'}
+                      {formatIDR(transaction.amount)}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {transaction.type === 'received' ? 'Amount Received' : 'Amount Withdrawn'}
+                      {transaction.type === 'received'
+                        ? 'Amount Received'
+                        : 'Amount Withdrawn'}
                     </p>
                   </div>
                 </div>
@@ -142,14 +188,16 @@ export default function DashboardPage() {
           {/* Earnings Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Money Earned • 2021</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Money Earned • 2021
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={mockEarningsData}>
-                    <XAxis 
-                      dataKey="month" 
+                    <XAxis
+                      dataKey="month"
                       axisLine={false}
                       tickLine={false}
                       fontSize={12}
@@ -157,9 +205,13 @@ export default function DashboardPage() {
                     <YAxis hide />
                     <Bar dataKey="earnings" radius={[4, 4, 0, 0]}>
                       {mockEarningsData.map((_, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={index === mockEarningsData.length - 1 ? "#3b82f6" : "#e5e7eb"} 
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            index === mockEarningsData.length - 1
+                              ? '#3b82f6'
+                              : '#e5e7eb'
+                          }
                         />
                       ))}
                     </Bar>
@@ -178,12 +230,19 @@ export default function DashboardPage() {
           {/* Client Contacts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold">Your Client Contact</CardTitle>
-              <Button variant="ghost" size="sm">•••</Button>
+              <CardTitle className="text-lg font-semibold">
+                Your Client Contact
+              </CardTitle>
+              <Button variant="ghost" size="sm">
+                •••
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               {mockUsers.slice(1, 4).map((user) => (
-                <div key={user.id} className="flex items-center justify-between">
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
                     <Avatar>
                       <AvatarImage src={user.avatar} />
@@ -223,8 +282,12 @@ export default function DashboardPage() {
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">Money Received</p>
-                  <p className="text-xs text-gray-500">Barly Vallendita - Wise</p>
-                  <p className="text-sm font-semibold text-green-600">{formatIDR(5000)}</p>
+                  <p className="text-xs text-gray-500">
+                    Barly Vallendita - Wise
+                  </p>
+                  <p className="text-sm font-semibold text-green-600">
+                    {formatIDR(5000)}
+                  </p>
                 </div>
                 <span className="text-xs text-gray-500">10 Aug 2021</span>
               </div>

@@ -10,10 +10,10 @@ import { liskSepolia } from 'viem/chains';
 const config = defaultConfig({
   appName: 'Zapow Escrow',
   appDescription: 'Secure escrow platform for international trade',
-  appUrl:
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : 'http://localhost:3000',
+  // appUrl:
+  //   typeof window !== 'undefined'
+  //     ? window.location.origin
+  //     : 'http://localhost:3000',
   appIcon: 'https://zapow.escrow/icon.png',
 
   chains: [liskSepolia],

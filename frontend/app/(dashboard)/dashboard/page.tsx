@@ -39,25 +39,67 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { graphqlClient, handleGraphQLError } from "@/lib/graphql/client";
+import { GET_ALL_ESCROWS } from "@/lib/graphql/queries";
+import type { Escrow, EscrowsResponse } from "@/lib/graphql/client";
 
 export default function DashboardPage() {
   const { address: account } = useAccount();
   const [activeTab, setActiveTab] = useState('all');
+  const [realEscrows, setRealEscrows] = useState<Escrow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Use mock data
   const currentUser = getCurrentUser();
   const contracts = getContractsByUser(currentUser.id);
   const stats = getDashboardStats(currentUser.id);
+  
+  // Fetch real escrows from blockchain
+  const fetchRealEscrows = async () => {
+    try {
+      const data = await graphqlClient.request<EscrowsResponse>(GET_ALL_ESCROWS);
+      setRealEscrows(data.escrows.items);
+    } catch (error) {
+      console.error("Failed to fetch escrows:", handleGraphQLError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Separate contracts by role
+  useEffect(() => {
+    fetchRealEscrows();
+    const interval = setInterval(fetchRealEscrows, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter real escrows based on user role
+  const realBuyerEscrows = realEscrows.filter((e) => e.buyer === account?.toLowerCase());
+  const realSellerEscrows = realEscrows.filter((e) => e.seller === account?.toLowerCase());
+  const userRealEscrows = realEscrows.filter(
+    (e) => e.buyer === account?.toLowerCase() || e.seller === account?.toLowerCase()
+  );
+
+  // Get active real escrows based on selected tab
+  const getActiveRealEscrows = () => {
+    let escrowList = userRealEscrows;
+    if (activeTab === 'buyer') escrowList = realBuyerEscrows;
+    if (activeTab === 'seller') escrowList = realSellerEscrows;
+    return escrowList.filter((e) =>
+      ['CREATED', 'FUNDED', 'DOCUMENTS_PENDING'].includes(e.status)
+    );
+  };
+
+  const activeRealEscrows = getActiveRealEscrows();
+
+  // Separate contracts by role (for mock data)
   const buyerContracts = contracts.filter((c) => c.buyer.id === currentUser.id);
   const sellerContracts = contracts.filter(
     (c) => c.seller.id === currentUser.id
   );
 
-  // Active contracts based on selected tab
+  // Active contracts based on selected tab (for mock data)
   const getActiveContracts = () => {
     let contractList = contracts;
     if (activeTab === 'buyer') contractList = buyerContracts;
@@ -171,13 +213,13 @@ export default function DashboardPage() {
                   Active Contracts
                 </p>
                 <p className='text-3xl font-bold text-blue-900 mb-1'>
-                  {activeContracts.length}
+                  {activeRealEscrows.length}
                 </p>
                 <div className='flex items-center text-blue-600 text-sm'>
                   <Clock className='h-4 w-4 mr-1' />
                   <span>
                     {
-                      activeContracts.filter((c) => c.status === 'created')
+                      activeRealEscrows.filter((e) => e.status === 'CREATED')
                         .length
                     }{' '}
                     awaiting payment
@@ -247,7 +289,7 @@ export default function DashboardPage() {
                     Active Contracts
                   </CardTitle>
                   <p className='text-sm text-gray-600 mt-1'>
-                    {activeContracts.length} contracts in progress
+                    {activeRealEscrows.length} contracts in progress
                   </p>
                 </div>
                 <Link href='/contracts'>
@@ -270,25 +312,30 @@ export default function DashboardPage() {
                 <TabsList className='grid w-full grid-cols-3 mb-4'>
                   <TabsTrigger value='all' className='flex items-center gap-2'>
                     <FileText className='h-4 w-4' />
-                    All ({stats.activeContracts})
+                    All ({activeRealEscrows.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value='buyer'
                     className='flex items-center gap-2'
                   >
                     <ShoppingCart className='h-4 w-4' />
-                    As Buyer ({stats.asBuyer.active})
+                    As Buyer ({realBuyerEscrows.filter(e => ['CREATED', 'FUNDED', 'DOCUMENTS_PENDING'].includes(e.status)).length})
                   </TabsTrigger>
                   <TabsTrigger
                     value='seller'
                     className='flex items-center gap-2'
                   >
                     <Store className='h-4 w-4' />
-                    As Seller ({stats.asSeller.active})
+                    As Seller ({realSellerEscrows.filter(e => ['CREATED', 'FUNDED', 'DOCUMENTS_PENDING'].includes(e.status)).length})
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value={activeTab} className='space-y-4 mt-0'>
-                  {activeContracts.length === 0 ? (
+                  {loading ? (
+                    <div className='text-center py-12'>
+                      <Loader2 className='h-8 w-8 animate-spin text-gray-400 mx-auto mb-4' />
+                      <p className='text-gray-500'>Loading contracts...</p>
+                    </div>
+                  ) : activeRealEscrows.length === 0 && activeContracts.length === 0 ? (
                     <div className='text-center py-12'>
                       <FileText className='h-12 w-12 text-gray-300 mx-auto mb-4' />
                       <h3 className='text-lg font-medium text-gray-900 mb-2'>
@@ -302,41 +349,42 @@ export default function DashboardPage() {
                       </Link>
                     </div>
                   ) : (
-                    activeContracts.slice(0, 3).map((contract) => {
-                      const isBuyer = contract.buyer.id === currentUser.id;
-                      const counterparty = isBuyer
-                        ? contract.seller
-                        : contract.buyer;
+                    <>
+                    {/* Blockchain Contracts */}
+                    {activeRealEscrows.slice(0, 3).map((escrow) => {
+                      const isBuyer = escrow.buyer === account?.toLowerCase();
+                      const counterpartyAddress = isBuyer ? escrow.seller : escrow.buyer;
+                      const counterpartyRole = isBuyer ? 'Seller' : 'Buyer';
 
                       return (
                         <div
-                          key={contract.id}
+                          key={escrow.id}
                           className='flex items-center justify-between p-4 bg-gray-50 rounded-xl hover-lift'
                         >
                           <div className='flex items-center gap-4'>
                             <Avatar className='h-12 w-12 border-2 border-white shadow-sm'>
                               <AvatarFallback className='bg-blue-100 text-blue-700 font-semibold'>
-                                {isBuyer ? 'S' : 'B'}
+                                {counterpartyRole.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
                               <h3 className='font-semibold text-gray-900'>
-                                {isBuyer ? 'Seller' : 'Buyer'}
+                                {counterpartyRole}
                               </h3>
                               <p className='text-xs text-gray-500'>
-                                {counterparty.name} - {counterparty.company}
+                                <span className='font-mono'>{counterpartyAddress.slice(0, 6)}...{counterpartyAddress.slice(-4)}</span>
                               </p>
                               <div className='flex items-center gap-2 mt-1'>
                                 <Badge variant='outline' className='text-xs'>
                                   {isBuyer ? (
                                     <>
-                                      <ShoppingCart className='h-3 w-3 mr-1' />{' '}
-                                      Buying from
+                                      <Store className='h-3 w-3 mr-1' />
+                                      Buying from you
                                     </>
                                   ) : (
                                     <>
-                                      <Store className='h-3 w-3 mr-1' /> Selling
-                                      to
+                                      <ShoppingCart className='h-3 w-3 mr-1' />
+                                      Selling to you
                                     </>
                                   )}
                                 </Badge>
@@ -345,17 +393,17 @@ export default function DashboardPage() {
                           </div>
                           <div className='text-right'>
                             <div className='text-xl font-bold text-gray-900 mb-1'>
-                              {formatIDRX(contract.amount)}
+                              {formatIDRX(Number(escrow.amount) / 100)}
                             </div>
                             <Badge
                               className={`${getStatusColor(
-                                contract.status
+                                escrow.status.toLowerCase().replace('_', '')
                               )} border font-medium`}
                             >
-                              {contract.status}
+                              {escrow.status.replace('_', ' ')}
                             </Badge>
                             <div className='flex items-center gap-1 mt-2'>
-                              <Link href={`/contracts/${contract.id}`}>
+                              <Link href={`/contracts/${escrow.id}`}>
                                 <Button
                                   variant='ghost'
                                   size='sm'
@@ -369,7 +417,93 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       );
-                    })
+                    })}
+                  
+                  {/* Separator between blockchain and mock data */}
+                  {activeRealEscrows.length > 0 && activeContracts.length > 0 && (
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-200"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="px-2 bg-white text-gray-500">Mock Data</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Mock Contracts */}
+                  {activeContracts.slice(0, 3 - activeRealEscrows.length).map((contract) => {
+                    const isBuyer = contract.buyer.id === currentUser.id;
+                    const counterparty = isBuyer
+                      ? contract.seller
+                      : contract.buyer;
+
+                    return (
+                      <div
+                        key={contract.id}
+                        className='flex items-center justify-between p-4 bg-orange-50 rounded-xl hover-lift border border-orange-100'
+                      >
+                        <div className='flex items-center gap-4'>
+                          <Avatar className='h-12 w-12 border-2 border-white shadow-sm'>
+                            <AvatarFallback className='bg-orange-100 text-orange-700 font-semibold'>
+                              {isBuyer ? 'S' : 'B'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h3 className='font-semibold text-gray-900'>
+                              {isBuyer ? 'Seller' : 'Buyer'}
+                            </h3>
+                            <p className='text-xs text-gray-500'>
+                              {counterparty.name} - {counterparty.company}
+                            </p>
+                            <div className='flex items-center gap-2 mt-1'>
+                              <Badge variant='outline' className='text-xs'>
+                                {isBuyer ? (
+                                  <>
+                                    <ShoppingCart className='h-3 w-3 mr-1' />
+                                    Buying from
+                                  </>
+                                ) : (
+                                  <>
+                                    <Store className='h-3 w-3 mr-1' />
+                                    Selling to
+                                  </>
+                                )}
+                              </Badge>
+                              <Badge className='bg-orange-100 text-orange-600 text-xs border-orange-200'>
+                                Mock
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className='text-right'>
+                          <div className='text-xl font-bold text-gray-900 mb-1'>
+                            {formatIDRX(contract.amount)}
+                          </div>
+                          <Badge
+                            className={`${getStatusColor(
+                              contract.status
+                            )} border font-medium`}
+                          >
+                            {contract.status}
+                          </Badge>
+                          <div className='flex items-center gap-1 mt-2'>
+                            <Link href={`/contracts/${contract.id}`}>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 px-2 text-xs'
+                              >
+                                <Eye className='h-3 w-3 mr-1' />
+                                View
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  </>
                   )}
                 </TabsContent>
               </Tabs>

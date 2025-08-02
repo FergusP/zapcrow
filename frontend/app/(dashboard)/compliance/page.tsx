@@ -247,6 +247,7 @@ export default function CompliancePage() {
                 const fileKey = `${contract.id}-main`;
                 const hasSelectedFile = uploadedFiles[fileKey] !== undefined;
                 const isUploading = uploadingContract === contract.id;
+                const documentsAlreadyUploaded = contract.status === 'DOCUMENTS_PENDING';
                 
                 return (
                   <div key={contract.id} className="border rounded-lg p-4 hover:bg-gray-50">
@@ -273,19 +274,25 @@ export default function CompliancePage() {
                     
                     {/* Document Upload Section */}
                     <div className="space-y-3">
-                      <p className="text-sm font-medium text-gray-700">Upload Shipping Documents:</p>
+                      <p className="text-sm font-medium text-gray-700">
+                        {documentsAlreadyUploaded ? 'Documents Already Uploaded' : 'Upload Shipping Documents:'}
+                      </p>
                       
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className={`flex items-center gap-3 p-3 rounded-lg ${documentsAlreadyUploaded ? 'bg-green-50' : 'bg-gray-50'}`}>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            {hasSelectedFile ? (
+                            {documentsAlreadyUploaded ? (
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            ) : hasSelectedFile ? (
                               <FileText className="h-4 w-4 text-blue-600" />
                             ) : (
                               <Clock className="h-4 w-4 text-gray-400" />
                             )}
-                            <span className="text-sm font-medium">Shipping Documents Package</span>
+                            <span className={`text-sm font-medium ${documentsAlreadyUploaded ? 'text-green-700' : ''}`}>
+                              {documentsAlreadyUploaded ? 'Documents Successfully Uploaded' : 'Shipping Documents Package'}
+                            </span>
                           </div>
-                          {hasSelectedFile && uploadedFiles[fileKey] && (
+                          {!documentsAlreadyUploaded && hasSelectedFile && uploadedFiles[fileKey] && (
                             <p className="text-xs text-gray-500 mt-1 ml-6">
                               Selected: {uploadedFiles[fileKey]!.name}
                             </p>
@@ -293,67 +300,84 @@ export default function CompliancePage() {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <input
-                            type="file"
-                            id={fileKey}
-                            className="hidden"
-                            accept=".pdf,.png,.jpg,.doc,.docx"
-                            disabled={isUploading || isConfirming}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setUploadedFiles(prev => ({ ...prev, [fileKey]: file }));
-                              }
-                            }}
-                          />
-                          <label htmlFor={fileKey}>
-                            <Button size="sm" variant="outline" asChild disabled={isUploading || isConfirming}>
-                              <span className="cursor-pointer">
-                                <Upload className="h-3 w-3 mr-1" />
-                                Choose File
-                              </span>
-                            </Button>
-                          </label>
-                          {hasSelectedFile && (
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              disabled={isUploading || isConfirming}
-                              onClick={() => {
-                                setUploadedFiles(prev => {
-                                  const newFiles = { ...prev };
-                                  delete newFiles[fileKey];
-                                  return newFiles;
-                                });
-                              }}
-                            >
-                              Remove
-                            </Button>
+                          {!documentsAlreadyUploaded && (
+                            <>
+                              <input
+                                type="file"
+                                id={fileKey}
+                                className="hidden"
+                                accept=".pdf,.png,.jpg,.doc,.docx"
+                                disabled={isUploading || isConfirming || documentsAlreadyUploaded}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setUploadedFiles(prev => ({ ...prev, [fileKey]: file }));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={fileKey}>
+                                <Button size="sm" variant="outline" asChild disabled={isUploading || isConfirming || documentsAlreadyUploaded}>
+                                  <span className="cursor-pointer">
+                                    <Upload className="h-3 w-3 mr-1" />
+                                    Choose File
+                                  </span>
+                                </Button>
+                              </label>
+                              {hasSelectedFile && (
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  disabled={isUploading || isConfirming}
+                                  onClick={() => {
+                                    setUploadedFiles(prev => {
+                                      const newFiles = { ...prev };
+                                      delete newFiles[fileKey];
+                                      return newFiles;
+                                    });
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
                       
                       {/* Submit Button */}
-                      <Button 
-                        className="w-full"
-                        disabled={!hasSelectedFile || isUploading || isConfirming}
-                        onClick={() => handleDocumentUpload(contract.id)}
-                      >
-                        {isUploading || isConfirming ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            {isConfirming ? 'Confirming on blockchain...' : 'Uploading...'}
-                          </>
-                        ) : (
-                          <>
-                            <Shield className="h-4 w-4 mr-2" />
-                            Submit Document Hash to Blockchain
-                          </>
-                        )}
-                      </Button>
-                      <p className="text-xs text-gray-500 text-center">
-                        Document hash will be stored on-chain for buyer verification
-                      </p>
+                      {!documentsAlreadyUploaded ? (
+                        <>
+                          <Button 
+                            className="w-full"
+                            disabled={!hasSelectedFile || isUploading || isConfirming || documentsAlreadyUploaded}
+                            onClick={() => handleDocumentUpload(contract.id)}
+                          >
+                            {isUploading || isConfirming ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                {isConfirming ? 'Confirming on blockchain...' : 'Uploading...'}
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="h-4 w-4 mr-2" />
+                                Submit Document Hash to Blockchain
+                              </>
+                            )}
+                          </Button>
+                          <p className="text-xs text-gray-500 text-center">
+                            Document hash will be stored on-chain for buyer verification
+                          </p>
+                        </>
+                      ) : (
+                        <div className="bg-green-100 border border-green-300 rounded-lg p-3 text-center">
+                          <p className="text-sm text-green-800 font-medium">
+                            ✓ Documents submitted successfully
+                          </p>
+                          <p className="text-xs text-green-700 mt-1">
+                            Waiting for buyer to confirm delivery
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

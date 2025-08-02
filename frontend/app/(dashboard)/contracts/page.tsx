@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { 
   Search, 
   Plus, 
@@ -20,28 +21,54 @@ import {
   CheckCircle,
   AlertCircle,
   Truck,
-  Users
+  Users,
+  Database,
+  TestTube,
+  XCircle
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import {
   getCurrentUser,
   getContractsByUser,
   getDashboardStats
 } from "@/lib/mock-data";
+import { graphqlClient, handleGraphQLError } from "@/lib/graphql/client";
+import { GET_ALL_ESCROWS } from "@/lib/graphql/queries";
+import type { Escrow, EscrowsResponse } from "@/lib/graphql/client";
 
 export default function ContractsPage() {
   const { address: account } = useAccount();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [realEscrows, setRealEscrows] = useState<Escrow[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Use mock data
   const currentUser = getCurrentUser();
   const contracts = getContractsByUser(currentUser.id);
   const stats = getDashboardStats(currentUser.id);
+  
+  // Fetch real escrows from Ponder
+  const fetchRealEscrows = async () => {
+    try {
+      const data = await graphqlClient.request<EscrowsResponse>(GET_ALL_ESCROWS);
+      setRealEscrows(data.escrows.items);
+    } catch (error) {
+      console.error("Failed to fetch escrows:", handleGraphQLError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRealEscrows();
+    const interval = setInterval(fetchRealEscrows, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, []);
   
   const formatIDRX = (amount: number) => {
     return `IDR ${amount.toLocaleString('id-ID')}`;
@@ -203,13 +230,175 @@ export default function ContractsPage() {
         </CardContent>
       </Card>
 
-      {/* Contracts List */}
-      <Card className="modern-card">
+      {/* Real Blockchain Contracts */}
+      <Card className="modern-card border-green-200 bg-green-50/50">
         <CardHeader className="pb-6">
           <div className="flex-between">
-            <div>
-              <CardTitle className="text-2xl font-bold text-gray-900 mb-2">All Contracts</CardTitle>
-              <p className="text-gray-600">Your complete contract history</p>
+            <div className="flex items-center gap-3">
+              <Database className="h-6 w-6 text-green-600" />
+              <div>
+                <CardTitle className="text-2xl font-bold text-gray-900 mb-1">Blockchain Contracts (Live)</CardTitle>
+                <p className="text-gray-600">Real escrows from Lisk Sepolia blockchain</p>
+              </div>
+            </div>
+            <Badge className="bg-green-100 text-green-800 border-green-200">
+              {loading ? 'Loading...' : `${realEscrows.length} contracts`}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/3 mx-auto"></div>
+                </div>
+              </div>
+            ) : realEscrows.length === 0 ? (
+              <div className="text-center py-8">
+                <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No blockchain contracts found</p>
+              </div>
+            ) : (
+              <div className="card-spacing">
+                {realEscrows.map((escrow) => {
+                  const isBuyer = escrow.buyer === account?.toLowerCase();
+                  const isSeller = escrow.seller === account?.toLowerCase();
+                  const role = isBuyer ? 'Buyer' : isSeller ? 'Seller' : 'Viewer';
+                  const counterpartyAddress = isBuyer ? escrow.seller : escrow.buyer;
+                  const counterpartyRole = isBuyer ? 'Seller' : 'Buyer';
+                  
+                  return (
+                    <div key={escrow.id} className="contract-item border-green-200 bg-green-50/20">
+                      <div className="flex items-center gap-8">
+                        {/* Your Role */}
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                            <AvatarFallback className="bg-blue-100 text-blue-700 font-semibold">
+                              {(isBuyer || isSeller) ? 'YOU' : 'N/A'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-gray-900">{role} {(isBuyer || isSeller) && '(You)'}</p>
+                            <p className="text-sm text-gray-600 font-mono text-green-700">
+                              {(isBuyer || isSeller) ? `${account?.slice(0, 6)}...${account?.slice(-4)}` : 'Not Involved'}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Database className="h-3 w-3" />
+                              <span>Blockchain Address</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Arrow */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-px bg-gray-300"></div>
+                          <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                          <div className="w-8 h-px bg-gray-300"></div>
+                        </div>
+
+                        {/* Counterparty */}
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                            <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
+                              {counterpartyAddress.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-gray-900">{counterpartyRole}</p>
+                            <p className="text-sm text-gray-600 font-mono text-green-700">
+                              {counterpartyAddress.slice(0, 6)}...{counterpartyAddress.slice(-4)}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Database className="h-3 w-3" />
+                              <span>Blockchain Address</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Contract Details */}
+                        <div>
+                          <p className="font-medium text-gray-900">Contract #{escrow.id.slice(0, 10)}...</p>
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDistanceToNow(new Date(escrow.createdAt * 1000), { addSuffix: true })}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Escrow ID: {escrow.id.slice(0, 20)}...</p>
+                        </div>
+                      </div>
+
+                      {/* Right Side - Amount, Status, Actions */}
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-700 mb-1">
+                            {formatIDRX(Number(escrow.amount) / 100)}
+                          </div>
+                          <p className="text-sm text-gray-600">IDRX</p>
+                        </div>
+
+                        <div className="text-center">
+                          <Badge className={`${
+                            escrow.status === "SETTLED" ? "bg-green-100 text-green-800 border-green-200" :
+                            escrow.status === "FUNDED" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                            escrow.status === "DOCUMENTS_PENDING" ? "bg-yellow-100 text-yellow-800 border-yellow-200" :
+                            escrow.status === "DISPUTED" ? "bg-red-100 text-red-800 border-red-200" :
+                            escrow.status === "CANCELLED" ? "bg-gray-100 text-gray-800 border-gray-200" :
+                            "bg-gray-100 text-gray-800 border-gray-200"
+                          } border font-medium mb-2`}>
+                            {escrow.status === "FUNDED" && <DollarSign className="h-3 w-3 mr-1" />}
+                            {escrow.status === "DOCUMENTS_PENDING" && <FileText className="h-3 w-3 mr-1" />}
+                            {escrow.status === "SETTLED" && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {escrow.status === "DISPUTED" && <AlertCircle className="h-3 w-3 mr-1" />}
+                            {escrow.status === "CANCELLED" && <XCircle className="h-3 w-3 mr-1" />}
+                            <span className="capitalize">{escrow.status.toLowerCase().replace('_', ' ')}</span>
+                          </Badge>
+                          <p className="text-xs text-gray-600 font-medium">
+                            Created on chain
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Link href={`/contracts/${escrow.id}`}>
+                            <Button variant="ghost" size="sm" className="hover:bg-green-50 hover:text-green-700">
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Separator */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <Separator className="w-full" />
+        </div>
+        <div className="relative flex justify-center">
+          <div className="bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 flex items-center gap-2">
+            <TestTube className="h-4 w-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-600">Mock Data Below (For UI Demo)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Mock Contracts List */}
+      <Card className="modern-card border-orange-200 bg-orange-50/30">
+        <CardHeader className="pb-6">
+          <div className="flex-between">
+            <div className="flex items-center gap-3">
+              <TestTube className="h-6 w-6 text-orange-600" />
+              <div>
+                <CardTitle className="text-2xl font-bold text-gray-900 mb-1">Mock Contracts (Demo UI)</CardTitle>
+                <p className="text-gray-600">Sample data for UI demonstration</p>
+              </div>
             </div>
           </div>
         </CardHeader>
