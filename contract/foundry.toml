@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+
+# Network configurations
+[rpc_endpoints]
+lisk_sepolia = "https://rpc.sepolia-api.lisk.com"
+lisk_mainnet = "https://rpc.api.lisk.com"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
