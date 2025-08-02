@@ -351,7 +351,10 @@ export default function DashboardPage() {
                   ) : (
                     <>
                     {/* Blockchain Contracts */}
-                    {activeRealEscrows.slice(0, 3).map((escrow) => {
+                    {activeRealEscrows
+                      .sort((a, b) => b.createdAt - a.createdAt) // Sort newest first
+                      .slice(0, 3)
+                      .map((escrow) => {
                       const isBuyer = escrow.buyer === account?.toLowerCase();
                       const counterpartyAddress = isBuyer ? escrow.seller : escrow.buyer;
                       const counterpartyRole = isBuyer ? 'Seller' : 'Buyer';
@@ -378,13 +381,13 @@ export default function DashboardPage() {
                                 <Badge variant='outline' className='text-xs'>
                                   {isBuyer ? (
                                     <>
-                                      <Store className='h-3 w-3 mr-1' />
-                                      Buying from you
+                                      <ShoppingCart className='h-3 w-3 mr-1' />
+                                      You are buying
                                     </>
                                   ) : (
                                     <>
-                                      <ShoppingCart className='h-3 w-3 mr-1' />
-                                      Selling to you
+                                      <Store className='h-3 w-3 mr-1' />
+                                      You are selling
                                     </>
                                   )}
                                 </Badge>
@@ -432,7 +435,10 @@ export default function DashboardPage() {
                   )}
                   
                   {/* Mock Contracts */}
-                  {activeContracts.slice(0, 3 - activeRealEscrows.length).map((contract) => {
+                  {activeContracts
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) // Sort newest first
+                    .slice(0, 3 - activeRealEscrows.length)
+                    .map((contract) => {
                     const isBuyer = contract.buyer.id === currentUser.id;
                     const counterparty = isBuyer
                       ? contract.seller

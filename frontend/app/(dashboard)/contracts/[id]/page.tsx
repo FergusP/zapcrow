@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Database,
   TestTube,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -43,6 +44,7 @@ import { ESCROW_CONTRACT, IDRX_CONTRACT, IDRX_ABI } from '@/lib/contracts/consta
 import { graphqlClient, handleGraphQLError } from "@/lib/graphql/client";
 import { GET_ESCROW_BY_ID } from "@/lib/graphql/queries";
 import type { Escrow } from "@/lib/graphql/client";
+import { documentService, type DocumentRecord } from "@/lib/services/document-service";
 
 export default function ContractDetailPage() {
   const params = useParams();
@@ -51,6 +53,7 @@ export default function ContractDetailPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [escrowData, setEscrowData] = useState<Escrow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [purchaseOrder, setPurchaseOrder] = useState<DocumentRecord | null>(null);
   
   // Contract write hooks
   const { writeContract: approveToken, data: approveHash } = useWriteContract();
@@ -65,8 +68,9 @@ export default function ContractDetailPage() {
   // For now, still use mock data for UI elements not in blockchain
   const currentUser = getCurrentUser();
   const contract = mockContracts.find(c => c.id === params.id);
-  const documents = contract ? getComplianceDocumentsByContract(contract.id) : [];
+  const mockDocuments = contract ? getComplianceDocumentsByContract(contract.id) : [];
   const relatedTransactions = mockTransactions.filter(t => t.contractId === params.id);
+  const [realDocuments, setRealDocuments] = useState<DocumentRecord[]>([]);
   
   // Fetch escrow data from blockchain
   const fetchEscrowData = async () => {
@@ -89,6 +93,35 @@ export default function ContractDetailPage() {
     fetchEscrowData();
     const interval = setInterval(fetchEscrowData, 3000);
     return () => clearInterval(interval);
+  }, [params.id]);
+  
+  // Fetch purchase order document
+  useEffect(() => {
+    const fetchPurchaseOrder = async () => {
+      if (!params.id || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        return;
+      }
+      
+      try {
+        // Documents are stored with escrow_id = blockchain escrow ID
+        console.log('Fetching documents for escrow ID:', params.id);
+        const documents = await documentService.getDocumentsByEscrow(params.id as string);
+        
+        console.log('Found documents:', documents.length);
+        setRealDocuments(documents);
+        const po = documents.find(doc => doc.type === 'purchase_order');
+        if (po) {
+          setPurchaseOrder(po);
+          console.log('Found purchase order:', po);
+        }
+      } catch (error) {
+        console.error('Error fetching documents:', error);
+      }
+    };
+    
+    if (params.id) {
+      fetchPurchaseOrder();
+    }
   }, [params.id]);
   
   // Watch for transaction confirmations
@@ -131,6 +164,7 @@ export default function ContractDetailPage() {
         <div className='text-center'>
           <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
           <p className='text-gray-500'>Loading contract details...</p>
+          <p className='text-xs text-gray-400 mt-2'>Waiting for blockchain confirmation...</p>
         </div>
       </div>
     );
@@ -141,10 +175,25 @@ export default function ContractDetailPage() {
     return (
       <div className='flex items-center justify-center h-64'>
         <div className='text-center'>
-          <p className='text-red-500 mb-2'>Contract not found</p>
-          <Link href="/contracts">
-            <Button variant="outline">Back to Contracts</Button>
-          </Link>
+          <p className='text-gray-500 mb-2'>Contract not found</p>
+          <p className='text-xs text-gray-400 mb-4'>
+            If you just created this contract, it may take a few seconds to appear
+          </p>
+          <div className='flex gap-2 justify-center'>
+            <Button 
+              variant='outline' 
+              onClick={() => {
+                setLoading(true);
+                fetchEscrowData();
+              }}
+            >
+              <RefreshCw className='h-4 w-4 mr-2' />
+              Refresh
+            </Button>
+            <Link href="/contracts">
+              <Button variant="outline">Back to Contracts</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -473,6 +522,21 @@ export default function ContractDetailPage() {
                 <p className='text-sm font-medium text-gray-600 mb-1'>Description</p>
                 <p className='text-sm text-gray-800'>{displayData!.description}</p>
               </div>
+              {/* Purchase Order Section */}
+              {purchaseOrder && (
+                <div>
+                  <p className='text-sm font-medium text-gray-600 mb-1'>Purchase Order</p>
+                  <Button 
+                    variant='outline' 
+                    size='sm' 
+                    className='mt-1'
+                    onClick={() => window.open(purchaseOrder.file_url, '_blank')}
+                  >
+                    <FileText className='h-4 w-4 mr-2' />
+                    View {purchaseOrder.file_name}
+                  </Button>
+                </div>
+              )}
               {isRealData && (
                 <div>
                   <p className='text-sm font-medium text-gray-600 mb-1'>Blockchain ID</p>
@@ -540,15 +604,29 @@ export default function ContractDetailPage() {
                   </div>
                 </>
               )}
-              {displayData?.purchaseOrderUrl && (
+              {(purchaseOrder || displayData?.purchaseOrderUrl) && (
                 <>
                   <Separator />
                   <div>
                     <p className='text-sm font-medium text-gray-600 mb-2'>Purchase Order</p>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const url = purchaseOrder?.file_url || displayData?.purchaseOrderUrl;
+                        if (url) {
+                          window.open(url, '_blank');
+                        }
+                      }}
+                    >
                       <Download className="h-4 w-4 mr-2" />
                       Download PO
                     </Button>
+                    {purchaseOrder && (
+                      <p className='text-xs text-gray-500 mt-1'>
+                        Uploaded {formatDistanceToNow(new Date(purchaseOrder.uploaded_at), { addSuffix: true })}
+                      </p>
+                    )}
                   </div>
                 </>
               )}
@@ -645,17 +723,18 @@ export default function ContractDetailPage() {
                 </p>
                 
                 {/* Document List */}
-                {documents.length > 0 && (
+                {(realDocuments.length > 0 || mockDocuments.length > 0) && (
                   <div className='space-y-2'>
                     <p className='text-sm font-medium text-gray-700'>Uploaded Documents:</p>
-                    {documents.map((doc) => (
+                    {/* Show real documents - only shipping documents (bill of lading) for review */}
+                    {realDocuments.filter(doc => doc.type === 'bill_of_lading').map((doc) => (
                       <div key={doc.id} className='flex items-center justify-between p-3 bg-white rounded-lg border'>
                         <div className='flex items-center gap-2'>
                           <FileText className='h-4 w-4 text-gray-400' />
                           <div>
-                            <p className='text-sm font-medium'>{doc.name}</p>
+                            <p className='text-sm font-medium'>{doc.file_name}</p>
                             <p className='text-xs text-gray-500'>
-                              Uploaded {formatDistanceToNow(new Date(doc.uploadedAt), { addSuffix: true })}
+                              Uploaded {formatDistanceToNow(new Date(doc.uploaded_at), { addSuffix: true })}
                             </p>
                           </div>
                         </div>
@@ -667,7 +746,37 @@ export default function ContractDetailPage() {
                           }>
                             {doc.status}
                           </Badge>
-                          <Button variant='ghost' size='sm'>
+                          <Button 
+                            variant='ghost' 
+                            size='sm'
+                            onClick={() => window.open(doc.file_url, '_blank')}
+                          >
+                            <Eye className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Show mock documents if no real documents */}
+                    {realDocuments.length === 0 && mockDocuments.map((doc) => (
+                      <div key={doc.id} className='flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-100'>
+                        <div className='flex items-center gap-2'>
+                          <FileText className='h-4 w-4 text-gray-400' />
+                          <div>
+                            <p className='text-sm font-medium'>{doc.name}</p>
+                            <p className='text-xs text-gray-500'>
+                              Uploaded {formatDistanceToNow(new Date(doc.uploadedAt), { addSuffix: true })} (Mock)
+                            </p>
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <Badge className={
+                            doc.status === 'approved' ? 'bg-green-100 text-green-800' :
+                            doc.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }>
+                            {doc.status}
+                          </Badge>
+                          <Button variant='ghost' size='sm' disabled>
                             <Eye className='h-4 w-4' />
                           </Button>
                         </div>

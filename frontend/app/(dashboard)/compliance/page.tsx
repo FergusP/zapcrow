@@ -12,7 +12,9 @@ import {
   Clock,
   Package,
   Truck,
-  Loader2
+  Loader2,
+  Eye,
+  Download
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
@@ -22,6 +24,7 @@ import { keccak256, toBytes } from "viem";
 import { graphqlClient, handleGraphQLError } from "@/lib/graphql/client";
 import { GET_SELLER_ESCROWS, GET_ALL_ESCROWS, GET_BUYER_ESCROWS } from "@/lib/graphql/queries";
 import type { EscrowsResponse } from "@/lib/graphql/client";
+import { documentService, type DocumentRecord } from "@/lib/services/document-service";
 
 // Contract addresses
 const ESCROW_CONTRACT = "0x44c796914f987c71414971D5A5E32be749664F44";
@@ -48,6 +51,7 @@ export default function CompliancePage() {
   const [buyerEscrows, setBuyerEscrows] = useState<Escrow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File | null>>({});
+  const [documents, setDocuments] = useState<Record<string, DocumentRecord[]>>({});
   const [uploadingContract, setUploadingContract] = useState<string | null>(null);
   
   // Contract write hooks
@@ -87,6 +91,29 @@ export default function CompliancePage() {
     return () => clearInterval(interval);
   }, [address]);
 
+  // Fetch documents for each escrow
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        return;
+      }
+      
+      const allEscrows = [...escrows, ...buyerEscrows];
+      for (const escrow of allEscrows) {
+        try {
+          const docs = await documentService.getDocumentsByEscrow(escrow.id);
+          setDocuments(prev => ({ ...prev, [escrow.id]: docs }));
+        } catch (error) {
+          console.error(`Error fetching documents for escrow ${escrow.id}:`, error);
+        }
+      }
+    };
+
+    if (escrows.length > 0 || buyerEscrows.length > 0) {
+      fetchDocuments();
+    }
+  }, [escrows, buyerEscrows]);
+
   // Effect to handle successful uploads
   useEffect(() => {
     if (isConfirmed) {
@@ -117,7 +144,7 @@ export default function CompliancePage() {
 
   const handleDocumentUpload = async (contractId: string) => {
     const file = uploadedFiles[`${contractId}-main`];
-    if (!file) {
+    if (!file || !address) {
       toast.error("Please select a file first");
       return;
     }
@@ -125,21 +152,54 @@ export default function CompliancePage() {
     setUploadingContract(contractId);
 
     try {
-      // In a real app, you would:
-      // 1. Upload to Supabase storage
-      // 2. Get the file URL/hash
-      // For now, we'll create a mock hash from the file name
-      const documentHash = keccak256(toBytes(file.name + Date.now()));
+      let documentHash: `0x${string}`;
+      
+      // Check if Supabase is configured
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        // Upload to Supabase
+        const document = await documentService.uploadDocument(
+          file,
+          contractId,
+          contractId, // Using escrowId as contractId for now
+          'bill_of_lading', // Using a valid document type from the schema
+          address.toLowerCase()
+        );
+        
+        // Update local documents state
+        setDocuments(prev => ({
+          ...prev,
+          [contractId]: [...(prev[contractId] || []), document]
+        }));
+        
+        // Use the document hash from the service
+        documentHash = document.file_hash as `0x${string}`;
+        
+        toast.success("Document uploaded to storage!");
+      } else {
+        // Fallback to local hash calculation if Supabase not configured
+        const buffer = await file.arrayBuffer();
+        const hashArray = new Uint8Array(buffer);
+        documentHash = keccak256(hashArray);
+        
+        toast.warning("Using local storage only. Configure Supabase for persistent storage.");
+      }
 
-      // Store hash on blockchain
-      writeContract({
-        address: ESCROW_CONTRACT,
-        abi: ESCROW_ABI,
-        functionName: "storeDocumentHash",
-        args: [contractId as `0x${string}`, documentHash],
+      // Clear the file selection after successful upload
+      setUploadedFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[`${contractId}-main`];
+        return newFiles;
       });
+      
+      // Reset file input
+      const fileInput = document.getElementById(`${contractId}-main`) as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
 
-      toast.info("Submitting document hash to blockchain...");
+      // Don't submit to blockchain here - just upload
+      setUploadingContract(null);
+      toast.success("Document uploaded successfully!");
     } catch (error) {
       console.error("Error uploading document:", error);
       toast.error("Failed to upload document");
@@ -304,10 +364,10 @@ export default function CompliancePage() {
                             <>
                               <input
                                 type="file"
-                                id={fileKey}
+                                id={`${contract.id}-main`}
                                 className="hidden"
                                 accept=".pdf,.png,.jpg,.doc,.docx"
-                                disabled={isUploading || isConfirming || documentsAlreadyUploaded}
+                                disabled={isUploading || isConfirming || documentsAlreadyUploaded || (documents[contract.id] && documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length > 0)}
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
@@ -315,18 +375,24 @@ export default function CompliancePage() {
                                   }
                                 }}
                               />
-                              <label htmlFor={fileKey}>
-                                <Button size="sm" variant="outline" asChild disabled={isUploading || isConfirming || documentsAlreadyUploaded}>
-                                  <span className="cursor-pointer">
+                              <label htmlFor={`${contract.id}-main`}>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  asChild 
+                                  disabled={isUploading || isConfirming || documentsAlreadyUploaded || (documents[contract.id] && documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length > 0)}
+                                >
+                                  <span className={documents[contract.id] && documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length > 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer"}>
                                     <Upload className="h-3 w-3 mr-1" />
                                     Choose File
                                   </span>
                                 </Button>
                               </label>
-                              {hasSelectedFile && (
+                              {hasSelectedFile && !documentsAlreadyUploaded && (
                                 <Button 
                                   size="sm" 
-                                  variant="ghost"
+                                  variant="outline"
+                                  className="border-red-200 text-red-600 hover:bg-red-50"
                                   disabled={isUploading || isConfirming}
                                   onClick={() => {
                                     setUploadedFiles(prev => {
@@ -344,29 +410,138 @@ export default function CompliancePage() {
                         </div>
                       </div>
                       
-                      {/* Submit Button */}
+                      {/* Display uploaded documents from database */}
+                      {documents[contract.id] && documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-medium text-gray-700">Uploaded Documents:</p>
+                          {documents[contract.id].filter(doc => doc.type === 'bill_of_lading').map((doc) => (
+                            <div key={doc.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-gray-400" />
+                                <div>
+                                  <p className="text-sm font-medium">{doc.file_name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    Uploaded {formatDistanceToNow(new Date(doc.uploaded_at), { addSuffix: true })}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className={
+                                  doc.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                  doc.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }>
+                                  {doc.status}
+                                </Badge>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => window.open(doc.file_url, '_blank')}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                  {contract.status !== 'DOCUMENTS_PENDING' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-red-200 text-red-600 hover:bg-red-50"
+                                      onClick={async () => {
+                                        try {
+                                          // Extract file path from URL
+                                          const urlParts = doc.file_url.split('/');
+                                          const filePath = urlParts.slice(-2).join('/');
+                                          await documentService.deleteDocument(doc.id, filePath);
+                                          
+                                          // Update local state
+                                          setDocuments(prev => ({
+                                            ...prev,
+                                            [contract.id]: prev[contract.id].filter(d => d.id !== doc.id)
+                                          }));
+                                          toast.success("Document removed successfully");
+                                        } catch (error) {
+                                          console.error("Error deleting document:", error);
+                                          toast.error("Failed to remove document");
+                                        }
+                                      }}
+                                    >
+                                      Remove
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Upload/Submit Buttons */}
                       {!documentsAlreadyUploaded ? (
                         <>
-                          <Button 
-                            className="w-full"
-                            disabled={!hasSelectedFile || isUploading || isConfirming || documentsAlreadyUploaded}
-                            onClick={() => handleDocumentUpload(contract.id)}
-                          >
-                            {isUploading || isConfirming ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                {isConfirming ? 'Confirming on blockchain...' : 'Uploading...'}
-                              </>
-                            ) : (
-                              <>
-                                <Shield className="h-4 w-4 mr-2" />
-                                Submit Document Hash to Blockchain
-                              </>
-                            )}
-                          </Button>
-                          <p className="text-xs text-gray-500 text-center">
-                            Document hash will be stored on-chain for buyer verification
-                          </p>
+                          {/* Show upload button if no shipping documents uploaded yet */}
+                          {(!documents[contract.id] || documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length === 0) && (
+                            <>
+                              <Button 
+                                className="w-full"
+                                disabled={!hasSelectedFile || isUploading}
+                                onClick={() => handleDocumentUpload(contract.id)}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Upload Document
+                                  </>
+                                )}
+                              </Button>
+                              <p className="text-xs text-gray-500 text-center">
+                                Upload your shipping documents first
+                              </p>
+                            </>
+                          )}
+                          
+                          {/* Show submit button if shipping documents are uploaded */}
+                          {documents[contract.id] && documents[contract.id].filter(doc => doc.type === 'bill_of_lading').length > 0 && (
+                            <>
+                              <Button 
+                                className="w-full bg-green-600 hover:bg-green-700"
+                                disabled={isConfirming}
+                                onClick={async () => {
+                                  const billOfLadingDocs = documents[contract.id].filter(doc => doc.type === 'bill_of_lading');
+                                  const latestDoc = billOfLadingDocs[billOfLadingDocs.length - 1];
+                                  const documentHash = latestDoc.file_hash as `0x${string}`;
+                                  
+                                  writeContract({
+                                    address: ESCROW_CONTRACT,
+                                    abi: ESCROW_ABI,
+                                    functionName: "storeDocumentHash",
+                                    args: [contract.id as `0x${string}`, documentHash],
+                                  });
+                                  
+                                  toast.info("Submitting document hash to blockchain...");
+                                }}
+                              >
+                                {isConfirming ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Confirming...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Shield className="h-4 w-4 mr-2" />
+                                    Submit to Blockchain
+                                  </>
+                                )}
+                              </Button>
+                              <p className="text-xs text-gray-500 text-center mt-2">
+                                Document uploaded! Submit to blockchain
+                              </p>
+                            </>
+                          )}
                         </>
                       ) : (
                         <div className="bg-green-100 border border-green-300 rounded-lg p-3 text-center">
