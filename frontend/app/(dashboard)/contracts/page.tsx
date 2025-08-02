@@ -46,6 +46,8 @@ export default function ContractsPage() {
   const [sortBy, setSortBy] = useState("newest");
   const [realEscrows, setRealEscrows] = useState<Escrow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const contractsPerPage = 10;
   
   // Use mock data
   const currentUser = getCurrentUser();
@@ -262,7 +264,10 @@ export default function ContractsPage() {
               </div>
             ) : (
               <div className="card-spacing">
-                {realEscrows.map((escrow) => {
+                {realEscrows
+                  .sort((a, b) => b.createdAt - a.createdAt) // Sort by newest first
+                  .slice((currentPage - 1) * contractsPerPage, currentPage * contractsPerPage)
+                  .map((escrow) => {
                   const isBuyer = escrow.buyer === account?.toLowerCase();
                   const isSeller = escrow.seller === account?.toLowerCase();
                   const role = isBuyer ? 'Buyer' : isSeller ? 'Seller' : 'Viewer';
@@ -512,6 +517,31 @@ export default function ContractsPage() {
           </div>
         </CardContent>
       </Card>
+      
+      {/* Pagination Controls */}
+      {realEscrows.length > contractsPerPage && (
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {Math.ceil(realEscrows.length / contractsPerPage)}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(realEscrows.length / contractsPerPage), prev + 1))}
+            disabled={currentPage === Math.ceil(realEscrows.length / contractsPerPage)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
