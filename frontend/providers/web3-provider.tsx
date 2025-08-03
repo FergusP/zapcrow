@@ -19,7 +19,8 @@ const config = defaultConfig({
   chains: [liskSepolia],
 
   // Use real WalletConnect project ID for mobile wallets
-  walletConnectProjectId: 'fd72198296f17b917980c76f888bf1c5',
+  walletConnectProjectId:
+    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
 
   // We need to provide these but they won't be used since we disable the features
   xellarAppId: process.env.NEXT_PUBLIC_XELLAR_APP_ID || 'dummy-id',

@@ -74,10 +74,10 @@ export class EscrowService {
       account: this.walletClient.account
     });
 
-    console.log('Approving tokens...');
+    // console.log('Approving tokens...');
     const approveHash = await this.walletClient.writeContract(approveRequest);
     await this.publicClient.waitForTransactionReceipt({ hash: approveHash });
-    console.log('Approve successful:', approveHash);
+    // console.log('Approve successful:', approveHash);
 
     return { hash: approveHash };
   }
@@ -118,10 +118,10 @@ export class EscrowService {
       account: this.walletClient.account
     });
 
-    console.log('Funding escrow...');
+    // console.log('Funding escrow...');
     const fundHash = await this.walletClient.writeContract(fundRequest);
     await this.publicClient.waitForTransactionReceipt({ hash: fundHash });
-    console.log('Fund successful:', fundHash);
+    // console.log('Fund successful:', fundHash);
 
     return { hash: fundHash };
   }
@@ -193,7 +193,7 @@ export class EscrowService {
       args: [userAddress, ESCROW_CONTRACT]
     });
 
-    console.log('Current allowance:', currentAllowance.toString(), 'Required:', amountInWei.toString());
+    // console.log('Current allowance:', currentAllowance.toString(), 'Required:', amountInWei.toString());
 
     // Only approve if current allowance is insufficient
     if (currentAllowance < amountInWei) {
@@ -207,14 +207,14 @@ export class EscrowService {
       });
 
       onProgress?.('Step 1/2: Approving token spend - Please confirm in wallet...');
-      console.log('Approving tokens...');
+      // console.log('Approving tokens...');
       const approveHash = await this.walletClient.writeContract(approveRequest);
       
       onProgress?.('Step 1/2: Waiting for approval confirmation...');
       await this.publicClient.waitForTransactionReceipt({ hash: approveHash });
-      console.log('Approve successful:', approveHash);
+      // console.log('Approve successful:', approveHash);
     } else {
-      console.log('Sufficient allowance already exists, skipping approval');
+      // console.log('Sufficient allowance already exists, skipping approval');
       onProgress?.('Sufficient allowance found, skipping approval...');
     }
 
@@ -229,12 +229,12 @@ export class EscrowService {
     });
 
     onProgress?.('Step 2/2: Funding escrow - Please confirm in wallet...');
-    console.log('Funding escrow...');
+    // console.log('Funding escrow...');
     const fundHash = await this.walletClient.writeContract(fundRequest);
     
     onProgress?.('Step 2/2: Waiting for funding confirmation...');
     await this.publicClient.waitForTransactionReceipt({ hash: fundHash });
-    console.log('Fund successful:', fundHash);
+    // console.log('Fund successful:', fundHash);
     
     return { hash: fundHash };
   }

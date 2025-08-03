@@ -63,12 +63,12 @@ export default function CompliancePage() {
     if (!address) return;
     
     try {
-      console.log("Fetching escrows for seller:", address.toLowerCase());
+      // console.log("Fetching escrows for seller:", address.toLowerCase());
       const data = await graphqlClient.request<EscrowsResponse>(
         GET_SELLER_ESCROWS,
         { seller: address.toLowerCase() }
       );
-      console.log("GraphQL response:", data);
+      // console.log("GraphQL response:", data);
       setEscrows(data.escrows.items);
       
       // Also fetch buyer contracts for informational purposes
@@ -234,7 +234,7 @@ export default function CompliancePage() {
           onClick={async () => {
             try {
               const data = await graphqlClient.request<EscrowsResponse>(GET_ALL_ESCROWS);
-              console.log("All escrows:", data.escrows.items);
+              // console.log("All escrows:", data.escrows.items);
               toast.info(`Found ${data.escrows.items.length} total escrows in the system`);
             } catch (error) {
               console.error("Error fetching all escrows:", error);
