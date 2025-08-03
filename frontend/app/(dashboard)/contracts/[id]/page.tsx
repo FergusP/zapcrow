@@ -54,6 +54,7 @@ export default function ContractDetailPage() {
   const [escrowData, setEscrowData] = useState<Escrow | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchaseOrder, setPurchaseOrder] = useState<DocumentRecord | null>(null);
+  const [fundingFlowActive, setFundingFlowActive] = useState(false);
   
   // Contract write hooks
   const { writeContract: approveToken, data: approveHash } = useWriteContract();
@@ -64,6 +65,9 @@ export default function ContractDetailPage() {
   const { isLoading: isApproving, isSuccess: isApproved } = useWaitForTransactionReceipt({ hash: approveHash });
   const { isLoading: isFunding, isSuccess: isFunded } = useWaitForTransactionReceipt({ hash: fundHash });
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: confirmHash });
+  
+  // Derived state to check if any transaction is in progress
+  const isTransactionInProgress = isApproving || isFunding || (isApproved && !isFunded && !fundHash);
   
   // For now, still use mock data for UI elements not in blockchain
   const currentUser = getCurrentUser();
@@ -91,7 +95,7 @@ export default function ContractDetailPage() {
   
   useEffect(() => {
     fetchEscrowData();
-    const interval = setInterval(fetchEscrowData, 3000);
+    const interval = setInterval(fetchEscrowData, 5000);
     return () => clearInterval(interval);
   }, [params.id]);
   
@@ -104,15 +108,15 @@ export default function ContractDetailPage() {
       
       try {
         // Documents are stored with escrow_id = blockchain escrow ID
-        console.log('Fetching documents for escrow ID:', params.id);
+        // Fetching documents for escrow
         const documents = await documentService.getDocumentsByEscrow(params.id as string);
         
-        console.log('Found documents:', documents.length);
+        // Found documents
         setRealDocuments(documents);
         const po = documents.find(doc => doc.type === 'purchase_order');
         if (po) {
           setPurchaseOrder(po);
-          console.log('Found purchase order:', po);
+          // Found purchase order
         }
       } catch (error) {
         console.error('Error fetching documents:', error);
@@ -142,6 +146,7 @@ export default function ContractDetailPage() {
     if (isFunded) {
       toast.success('Escrow funded successfully!');
       fetchEscrowData();
+      setFundingFlowActive(false);
     }
   }, [isFunded]);
   
@@ -319,6 +324,7 @@ export default function ContractDetailPage() {
   const handleFundEscrow = async () => {
     if (!escrowData) return;
     
+    setFundingFlowActive(true);
     try {
       // First approve the token spending
       const amountInWei = parseUnits(escrowData.amount, 0); // Amount is already in smallest unit
@@ -333,6 +339,7 @@ export default function ContractDetailPage() {
     } catch (error) {
       console.error('Error funding escrow:', error);
       toast.error('Failed to approve token spend');
+      setFundingFlowActive(false);
     }
   };
 
@@ -657,7 +664,7 @@ export default function ContractDetailPage() {
                 </div>
                 <Button
                   onClick={handleFundEscrow}
-                  disabled={isApproving || isFunding}
+                  disabled={fundingFlowActive || isApproving || isFunding}
                   className='w-full bg-blue-600 hover:bg-blue-700'
                 >
                   {isApproving ? (

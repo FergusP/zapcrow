@@ -5,10 +5,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Debug log
-console.log('Supabase config:', {
-  url: supabaseUrl ? 'Set' : 'Missing',
-  key: supabaseAnonKey ? 'Set' : 'Missing'
-});
+// console.log('Supabase config:', {
+//   url: supabaseUrl ? 'Set' : 'Missing',
+//   key: supabaseAnonKey ? 'Set' : 'Missing'
+// });
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

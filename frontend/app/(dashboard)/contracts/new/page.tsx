@@ -134,13 +134,7 @@ export default function CreateContractPage() {
       const deliveryDeadline = Math.floor(Date.now() / 1000) + parseInt(formData.deliveryDays) * 24 * 60 * 60;
       const amountInWei = parseUnits(formData.amount, 2); // IDRX has 2 decimals
 
-      console.log('Creating escrow contract:', {
-        sellerEmail: formData.sellerEmail,
-        sellerAddress: SELLER_ADDRESS,
-        buyerAddress: account,
-        amount: amountInWei.toString(),
-        deliveryDeadline: deliveryDeadline
-      });
+      // Creating escrow contract
 
       // Call the smart contract
       await createEscrow({

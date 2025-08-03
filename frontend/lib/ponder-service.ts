@@ -50,10 +50,10 @@ export class PonderService {
       return this.getMockDataForQuery(query, variables) as T;
     }
 
-    console.log('PonderService query:', { 
-      url: `${PONDER_URL}/graphql`,
-      variables 
-    });
+    // console.log('PonderService query:', { 
+    //   url: `${PONDER_URL}/graphql`,
+    //   variables 
+    // });
     
     try {
       const response = await fetch(`${PONDER_URL}/graphql`, {
@@ -84,7 +84,7 @@ export class PonderService {
 
       return result.data;
     } catch (error) {
-      console.log('Ponder not available, using mock data');
+      // console.log('Ponder not available, using mock data');
       return this.getMockDataForQuery(query, variables) as T;
     }
   }
@@ -251,7 +251,7 @@ export class PonderService {
       address: address.toLowerCase(),
     });
 
-    console.log(`getUserEscrows for ${address}: found ${data.escrows.items.length} escrows`);
+    // console.log(`getUserEscrows for ${address}: found ${data.escrows.items.length} escrows`);
     return data.escrows.items;
   }
 

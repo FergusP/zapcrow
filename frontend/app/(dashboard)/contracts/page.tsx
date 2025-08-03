@@ -68,7 +68,7 @@ export default function ContractsPage() {
 
   useEffect(() => {
     fetchRealEscrows();
-    const interval = setInterval(fetchRealEscrows, 3000); // Poll every 3 seconds
+    const interval = setInterval(fetchRealEscrows, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
   }, []);
   
