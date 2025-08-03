@@ -35,7 +35,7 @@ function LoginContent() {
                 <div className='w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm'>
                   <Zap className='h-7 w-7 text-white' />
                 </div>
-                <h1 className='text-3xl font-bold text-white'>Zapow</h1>
+                <h1 className='text-3xl font-bold text-white'>ZapCrow</h1>
               </div>
               <h2 className='text-5xl font-bold text-white mb-6 leading-tight'>
                 The Future of
@@ -79,13 +79,13 @@ function LoginContent() {
                 <div className='w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center'>
                   <Zap className='h-6 w-6 text-white' />
                 </div>
-                <h1 className='text-2xl font-bold text-gray-900'>Zapow</h1>
+                <h1 className='text-2xl font-bold text-gray-900'>ZapCrow</h1>
               </div>
             </div>
 
             <div className='mb-6 text-center'>
               <h2 className='text-3xl font-bold text-gray-900 mb-2'>
-                Welcome to Zapow
+                Welcome to ZapCrow
               </h2>
               <p className='text-gray-600'>
                 Connect your wallet to start secure escrow trading

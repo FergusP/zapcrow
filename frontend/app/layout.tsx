@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zapow - Zap Escrow Platform",
+  title: "ZapCrow - Zap Escrow Platform",
   description: "Lightning-fast secure escrow platform for international trade with blockchain protection",
 };
 

@@ -341,7 +341,7 @@ export default function TaxesPage() {
               <p className="text-sm text-amber-700">
                 Tax rates and regulations vary by country and product category. This calculator provides estimates only. 
                 Please consult with tax professionals and customs authorities for accurate tax obligations. 
-                Zapow is not responsible for tax compliance or accuracy of calculations.
+                ZapCrow is not responsible for tax compliance or accuracy of calculations.
               </p>
             </div>
           </div>

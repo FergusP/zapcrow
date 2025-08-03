@@ -8,7 +8,7 @@ import { liskSepolia } from 'viem/chains';
 
 // Create config with XellarKit defaultConfig
 const config = defaultConfig({
-  appName: 'Zapow Escrow',
+  appName: 'ZapCrow Escrow',
   appDescription: 'Secure escrow platform for international trade',
   // appUrl:
   //   typeof window !== 'undefined'

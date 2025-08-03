@@ -85,7 +85,7 @@ const mockFAQs: FAQItem[] = [
 const mockResources: ResourceItem[] = [
   {
     id: '1',
-    title: 'Getting Started with Zapow',
+    title: 'Getting Started with ZapCrow',
     type: 'guide',
     description: 'Complete guide to creating your first escrow contract',
     url: '#',
